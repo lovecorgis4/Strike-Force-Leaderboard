@@ -19,5 +19,7 @@ You will need to have [Docker](https://www.docker.com/) installed on your machin
    To install this leaderboard you need to open a terminal in the folder you wnt the code and files in, run this command git clone https://github.com/vsc8080/Strike-Force-Leaderboard.git. Once you have the files run these commands:
   ' docker build -t strike-force-leaderboard . ' (to build the docker image)
 
-  ' docker run -p 8080:8080 -v C:\dev\leaderboard\leaderboard.json:/root/leaderboard.json strike-force-leaderboard ' (this is what runs the program)
+  ' docker run -p 8080:8080 -v ${PWD}/leaderboard.json:/root/leaderboard.json leaderboard-app ' for Windows users
+  ' docker run -p 8080:8080 -v $(pwd)/leaderboard.json:/root/leaderboard.json leaderboard-app ' for Mac/Linux users 
+  (this is what runs the program)
 After this you go to localhost:8080 and there you have the leaderboard (if you want to stop the server, just press Ctrl + C)
