@@ -31,7 +31,6 @@ func loadFile() {
 func main() {
 	loadFile()
 
-	// MAIN DASHBOARD
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		mutex.Lock()
 		defer mutex.Unlock()
@@ -50,37 +49,30 @@ func main() {
 		fmt.Fprint(w, "<h1>Strike Force Leaderboard</h1>")
 		fmt.Fprint(w, "<table style='margin: auto; border: 1px solid #444; padding: 20px; border-radius: 10px; background: #2a2a2a; min-width: 300px;'>")
 
-		// 4. Create the table rows
 		for i, name := range keys {
 			wins := leaderboard[name]
 
-			// Default style
-			rowStyle := "background: #2a2a2a;"
+			rowStyle := "background: #000000;"
 
-			// GOLD style for #1
 			if i == 0 {
 				rowStyle = "background: linear-gradient(90deg, #d4af37, #f1c40f); color: black; font-weight: bold;"
 			}
 
-			// Apply the style to the TR (Table Row)
 			fmt.Fprintf(w, "<tr style='%s'>", rowStyle)
 
-			// Name Column
 			fmt.Fprintf(w, "<td style='padding: 15px; text-align: left; border-bottom: 1px solid #444;'>#%d %s</td>", i+1, name)
 
-			// Wins Column
 			fmt.Fprintf(w, "<td style='padding: 15px; border-bottom: 1px solid #444;'><strong>%d Wins</strong></td>", wins)
 
-			// Buttons Columns
 			fmt.Fprintf(w, "<td style='padding: 15px; border-bottom: 1px solid #444;'><button style='cursor: pointer; padding: 8px 12px; background: #4CAF50; color: white; border: none; border-radius: 4px;' onclick=\"window.location.href='/win?name=%s'\">Add Win</button></td>", name)
 			fmt.Fprintf(w, "<td style='padding: 15px; border-bottom: 1px solid #444;'><button style='cursor: pointer; padding: 8px 12px; background: #ff4444; color: white; border: none; border-radius: 4px;' onclick=\"window.location.href='/delete?name=%s'\">Delete</button></td>", name)
+			fmt.Fprintf(w, "<td style='padding: 15px; border-bottom: 1px solid #444;'><button style='cursor: pointer; padding: 8px 12px; background: #ff4444; color: white; border: none; border-radius: 4px;' onclick=\"window.location.href='/deletewin?name=%s'\">Delete win</button></td>", name)
 
 			fmt.Fprint(w, "</tr>")
 		}
 
 		fmt.Fprint(w, "</table>")
 
-		// ADD NEW PLAYER SECTION (Outside the table)
 		fmt.Fprint(w, `
 			<div style='margin-top: 30px; border-top: 1px solid #444; padding-top: 20px;'>
 				<h3>Manage Players</h3>
@@ -95,7 +87,6 @@ func main() {
 		fmt.Fprint(w, "</body></html>")
 	})
 
-	// ADD WIN ROUTE
 	http.HandleFunc("/win", func(w http.ResponseWriter, r *http.Request) {
 		name := r.URL.Query().Get("name")
 		if name != "" {
@@ -107,7 +98,6 @@ func main() {
 		fmt.Fprint(w, "<html><body><script>window.location.href='/';</script></body></html>")
 	})
 
-	// ADD PLAYER ROUTE
 	http.HandleFunc("/add", func(w http.ResponseWriter, r *http.Request) {
 		name := r.URL.Query().Get("name")
 		if name != "" {
@@ -121,12 +111,26 @@ func main() {
 		fmt.Fprint(w, "<html><body><script>window.location.href='/';</script></body></html>")
 	})
 
-	// DELETE PLAYER ROUTE
+	http.HandleFunc("/deletewin", func(w http.ResponseWriter, r *http.Request) {
+		name := r.URL.Query().Get("name")
+
+		if name != "" {
+			mutex.Lock()
+			if currentWins, exists := leaderboard[name]; exists {
+				if currentWins > 0 {
+					leaderboard[name]--
+				}
+				saveFile()
+			}
+			mutex.Unlock()
+		}
+		fmt.Fprint(w, "<html><body><script>window.location.href='/';</script></body></html>")
+	})
+
 	http.HandleFunc("/delete", func(w http.ResponseWriter, r *http.Request) {
 		name := r.URL.Query().Get("name")
 		if name != "" {
 			mutex.Lock()
-			// Only delete if they ARE in the map
 			if _, exists := leaderboard[name]; exists {
 				delete(leaderboard, name)
 				saveFile()
