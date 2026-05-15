@@ -29,6 +29,16 @@ func loadFile() {
 }
 
 func main() {
+	if _, err := os.Stat("leaderboard.json"); os.IsNotExist(err) {
+		fmt.Println("leaderboard.json not found, creating a new one...")
+
+		initialData := []byte("{}")
+		err := os.WriteFile("leaderboard.json", initialData, 0644)
+		if err != nil {
+			fmt.Println("Error creating file:", err)
+		}
+	}
+
 	loadFile()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +89,7 @@ func main() {
 				<input type='text' id='playerName' placeholder='Enter name' style='padding: 8px;'>
 				<button style='cursor: pointer; padding: 8px 12px; background: #0008ff; color: white; border: none; border-radius: 4px;' 
 					onclick="let name = document.getElementById('playerName').value; if(name) window.location.href='/add?name=' + name">
-					Add New Player
+					Add Player
 				</button>
 			</div>
 		`)

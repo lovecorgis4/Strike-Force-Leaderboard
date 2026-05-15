@@ -22,4 +22,4 @@ You will need to have [Docker](https://www.docker.com/) installed on your machin
   ' docker run -p 8080:8080 -v ${PWD}/leaderboard.json:/root/leaderboard.json leaderboard-app ' for Windows users
   ' docker run -p 8080:8080 -v $(pwd)/leaderboard.json:/root/leaderboard.json leaderboard-app ' for Mac/Linux users 
   (this is what runs the program)
-After this you go to localhost:8080 and there you have the leaderboard (if you want to stop the server, just press Ctrl + C)
+After this you go to localhost:8080 and there you have the leaderboard (if you want to stop the current container, just press Ctrl + C)
