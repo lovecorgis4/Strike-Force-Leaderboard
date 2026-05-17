@@ -8,35 +8,56 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"time"
 )
 
+type AppData struct {
+	Scores map[string]int `json:"scores"`
+	Logs   []string       `json:"logs"`
+}
+
 var (
-	leaderboard = make(map[string]int)
-	mutex       sync.Mutex
-	filename    = "leaderboard.json"
+	data     AppData
+	mutex    sync.Mutex
+	filename = "leaderboard.json"
 )
 
 func saveFile() {
-	data, _ := json.Marshal(leaderboard)
-	os.WriteFile(filename, data, 0644)
+	bytes, _ := json.Marshal(data)
+	os.WriteFile(filename, bytes, 0644)
 }
 
 func loadFile() {
-	data, err := os.ReadFile(filename)
+	bytes, err := os.ReadFile(filename)
 	if err == nil {
-		json.Unmarshal(data, &leaderboard)
+		json.Unmarshal(bytes, &data)
+	}
+	if data.Scores == nil {
+		data.Scores = make(map[string]int)
+	}
+	if data.Logs == nil {
+		data.Logs = []string{}
 	}
 }
 
+func logActivity(message string) {
+	localZone := time.FixedZone("CEST", 2*60*60)
+
+	currentTime := time.Now().In(localZone).Format("3:04 PM")
+	logEntry := fmt.Sprintf("%s (%s)", message, currentTime)
+
+	data.Logs = append([]string{logEntry}, data.Logs...)
+	if len(data.Logs) > 10 {
+		data.Logs = data.Logs[:10]
+	}
+}
 func main() {
-	// 1. Auto-create file if missing
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		fmt.Println("leaderboard.json not found, creating a new one...")
-		initialData := []byte("{}")
+		initialData := []byte(`{"scores":{},"logs":[]}`)
 		os.WriteFile(filename, initialData, 0644)
 	}
 
-	// 2. Load the data into memory
 	loadFile()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -45,16 +66,14 @@ func main() {
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-		// 3. Logic: Prepare and Sort the keys
-		keys := make([]string, 0, len(leaderboard))
-		for name := range leaderboard {
+		keys := make([]string, 0, len(data.Scores))
+		for name := range data.Scores {
 			keys = append(keys, name)
 		}
 		sort.Slice(keys, func(i, j int) bool {
-			return leaderboard[keys[i]] > leaderboard[keys[j]]
+			return data.Scores[keys[i]] > data.Scores[keys[j]]
 		})
 
-		// 4. Start HTML and Style Tags
 		fmt.Fprint(w, `
 			<html>
 			<head>
@@ -76,9 +95,8 @@ func main() {
 				<table style='margin: auto; border: 1px solid #ffffff; padding: 20px; border-radius: 10px; background: #4b4a4a; min-width: 300px;'>
 		`)
 
-		// 5. Build Table Rows
 		for i, name := range keys {
-			wins := leaderboard[name]
+			wins := data.Scores[name]
 			rowStyle := "background: #767676;"
 
 			if i == 0 {
@@ -96,7 +114,6 @@ func main() {
 
 		fmt.Fprint(w, "</table>")
 
-		// 6. Manage Players Section
 		fmt.Fprint(w, `
 			<div style='margin-top: 30px; border-top: 1px solid #444; padding-top: 20px;'>
 				<h3>Manage Players</h3>
@@ -105,18 +122,34 @@ func main() {
 					onclick="let name = document.getElementById('playerName').value; if(name) window.location.href='/add?name=' + name">
 					Add New Player
 				</button>
+				<br><br>
+				<button style='cursor: pointer; padding: 8px 12px; background: #7a0000; color: white; border: none; border-radius: 4px; font-size: 12px;' 
+					onclick="if(confirm('Are you absolutely sure you want to WIPE the entire leaderboard? This cannot be undone.')) window.location.href='/reset'">
+					⚠️ Reset Leaderboard
+				</button>
 			</div>
-			</body></html>
 		`)
-	})
 
-	// --- ROUTES ---
+		fmt.Fprint(w, "<div style='margin-top: 40px; margin-bottom: 40px; border-top: 1px solid #444; padding-top: 20px;'>")
+		fmt.Fprint(w, "<h3>Recent Activity Log</h3>")
+		fmt.Fprint(w, "<ul style='list-style-type: none; padding: 0; max-width: 400px; margin: auto;'>")
+		for _, logMsg := range data.Logs {
+			fmt.Fprintf(w, "<li style='background: #222; margin: 5px 0; padding: 10px; border-radius: 4px; border-left: 4px solid #00ff22be; text-align: left;'>%s</li>", logMsg)
+		}
+		if len(data.Logs) == 0 {
+			fmt.Fprint(w, "<li style='color: #888;'>No activity logged yet.</li>")
+		}
+		fmt.Fprint(w, "</ul></div>")
+
+		fmt.Fprint(w, "</body></html>")
+	})
 
 	http.HandleFunc("/win", func(w http.ResponseWriter, r *http.Request) {
 		name := r.URL.Query().Get("name")
 		if name != "" {
 			mutex.Lock()
-			leaderboard[name]++
+			data.Scores[name]++
+			logActivity(fmt.Sprintf("🏆 %s won a match!", name))
 			saveFile()
 			mutex.Unlock()
 		}
@@ -127,8 +160,9 @@ func main() {
 		name := r.URL.Query().Get("name")
 		if name != "" {
 			mutex.Lock()
-			if _, exists := leaderboard[name]; !exists {
-				leaderboard[name] = 0
+			if _, exists := data.Scores[name]; !exists {
+				data.Scores[name] = 0
+				logActivity(fmt.Sprintf("👤 Added new player: %s", name))
 				saveFile()
 			}
 			mutex.Unlock()
@@ -140,8 +174,9 @@ func main() {
 		name := r.URL.Query().Get("name")
 		if name != "" {
 			mutex.Lock()
-			if currentWins, exists := leaderboard[name]; exists && currentWins > 0 {
-				leaderboard[name]--
+			if currentWins, exists := data.Scores[name]; exists && currentWins > 0 {
+				data.Scores[name]--
+				logActivity(fmt.Sprintf("📉 Removed a win from %s", name))
 				saveFile()
 			}
 			mutex.Unlock()
@@ -153,10 +188,23 @@ func main() {
 		name := r.URL.Query().Get("name")
 		if name != "" {
 			mutex.Lock()
-			delete(leaderboard, name)
-			saveFile()
+			if _, exists := data.Scores[name]; exists {
+				delete(data.Scores, name)
+				logActivity(fmt.Sprintf("❌ Completely removed player: %s", name))
+				saveFile()
+			}
 			mutex.Unlock()
 		}
+		fmt.Fprint(w, "<html><body><script>window.location.href='/';</script></body></html>")
+	})
+
+	http.HandleFunc("/reset", func(w http.ResponseWriter, r *http.Request) {
+		mutex.Lock()
+		data.Scores = make(map[string]int)
+		data.Logs = []string{}
+		logActivity("⚙️ Leaderboard was completely reset!")
+		saveFile()
+		mutex.Unlock()
 		fmt.Fprint(w, "<html><body><script>window.location.href='/';</script></body></html>")
 	})
 
